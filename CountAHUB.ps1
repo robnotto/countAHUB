@@ -17,7 +17,7 @@
 ## EDIT HERE 
 #######
 
-$SubscriptionID = "ac6fa4d7-f919-4aee-a2f4-d3d8da6c1d29"
+$SubscriptionID = "<insert subscription id here>"
 
 #######
 
