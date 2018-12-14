@@ -1,4 +1,4 @@
-﻿#Sample scripts are not supported under any Microsoft standard support program or service. 
+#Sample scripts are not supported under any Microsoft standard support program or service. 
 #The sample scripts are provided AS IS without warranty of any kind. Microsoft disclaims all 
 #implied warranties including, without limitation, any implied warranties of merchantability
 #or of fitness for a particular purpose. The entire risk arising out of the use or performance
@@ -9,16 +9,47 @@
 #out of the use of or inability to use the sample scripts or documentation, even if Microsoft 
 #has been advised of the possibility of such damages.
 
-#PLEASE NOTE: This is for demostration purposes only.
 
-# Install the Resource Graph (prerelease) module from PowerShell Gallery
-#Install-Module -Name AzureRm.ResourceGraph -AllowPrerelease
+###########
+## CountAHUB.ps1
+###########
+## Description: This script uses Azure Resource Graph to query the Azure subscription you specify or
+##   all of the subscriptions that you have access to with the intent of counting the number of cores 
+##   and VMs to caluclate the number of licenses needed to cover those VMs that have AHUB enabled.
+###########
+## IMPORTANT NOTES:
+##   1.) This script is meant to be a way to estimate. Please leverage other means to officially
+##   account for your license usage.
+##
+##       For more information on Azure Hybrid Use Benefits, see: 
+##       https://azure.microsoft.com/en-us/pricing/hybrid-benefit/
+##
+##   2.) In order to run this script you will need to install the Resource Graph modules from 
+##   the Powershell Gallery by using the following command:
+##
+##       Install-Module -Name AzureRm.ResourceGraph -AllowPrerelease
+##
+##   3.) The Resource Graph will only let you see what you have access to be able to see within a
+##   given subscription.
 
-#######
-## EDIT HERE 
-#######
+###########
+## EDIT HERE
+##   The SubscriptionID variable can eitehr hold a single subscription ID or could be blank to 
+##   pull all of the subscriptions that you have access to. 
+##
+## EXAMPLES:
+##
+##   $SubscriptionID = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+##      This will only search the specific subscription ID.
+##
+##
+##   $SubscriptionID = ""
+##      This will search all of the subscriptions that you have access to.
+##
+###########
 
-$SubscriptionID = "<insert subscription id here>"
+$SubscriptionID = "<insertSubscriptionIDHere>"
+#$SubscriptionID = ""
 
 #######
 
@@ -34,11 +65,14 @@ foreach ($key in $VMSizes){
 }
 
 #Collect list of VMs from Resource Graph
-$searchresults = Search-AzureRMGraph -Subscription $SubscriptionID -query "where type =~ 'Microsoft.Compute/virtualMachines' | summarize count() by  tostring(properties.hardwareProfile.vmSize), tostring(properties.storageProfile.imageReference.sku), tostring(properties.licenseType)"
-#$searchresults = Search-AzureRMGraph -query "where type =~ 'Microsoft.Compute/virtualMachines' | summarize count() by  tostring(properties.hardwareProfile.vmSize), tostring(properties.storageProfile.imageReference.sku), tostring(properties.licenseType)"
+if ($SubscriptionID -eq "") {
+    $searchresults = Search-AzureRMGraph -query "where type =~ 'Microsoft.Compute/virtualMachines' | summarize count() by  tostring(properties.hardwareProfile.vmSize), tostring(properties.storageProfile.imageReference.sku), tostring(properties.licenseType)"
+} Else {
+    $searchresults = Search-AzureRMGraph -Subscription $SubscriptionID -query "where type =~ 'Microsoft.Compute/virtualMachines' | summarize count() by  tostring(properties.hardwareProfile.vmSize), tostring(properties.licenseType)"
+}
 
 #Clean up output adding lookup data
-$searchresults | Select-Object @{Name="VMSize";Expression={$_.properties_hardwareProfile_vmSize}},@{name="CoreCount";Expression={$table[$_.properties_hardwareProfile_vmSize]}},@{Name="Image SKU";Expression={$_.properties_storageProfile_imageReference_sku}},@{Name="License Type";Expression={$_.properties_licenseType}},@{Name="Count";Expression={$_.count_}},@{Name="Total Cores";Expression={($table[$_.properties_hardwareProfile_vmSize])*$_.count_}} |ft
+$searchresults | Select-Object @{Name="VMSize";Expression={$_.properties_hardwareProfile_vmSize}},@{name="CoreCount";Expression={$table[$_.properties_hardwareProfile_vmSize]}},@{Name="License Type";Expression={$_.properties_licenseType}},@{Name="Count";Expression={$_.count_}},@{Name="Total Cores";Expression={($table[$_.properties_hardwareProfile_vmSize])*$_.count_}} |ft -AutoSize @{Name="VMSize";Expression={$_.VMSize};Alignment="left"},@{name="CoreCount";Expression={$_.CoreCount};Alignment="center"},@{Name="License Type";Expression={$_."License Type"};Alignment="left"},@{Name="VM Count";Expression={$_."Count"};Alignment="center"},@{Name="Total Cores";Expression={$_."Total Cores"};Alignment="center"}
 
 #Build Non-AHUB Core Count
 $val = $searchresults | Select-Object @{Name="License Type";Expression={$_.properties_licenseType}},@{Name="Total Cores";Expression={($table[$_.properties_hardwareProfile_vmSize])*$_.count_}} | Where-Object {$_."License Type" -ne "Windows_Server"} | Measure-Object -Property "Total Cores" -Sum
@@ -66,4 +100,11 @@ if ($LicCoreNeeded -gt $LicVMNeeded) {
     } else {
     $TotalLics = $LicVMNeeded
     }
+write-host "****************************************************************************************" -Foregroundcolor cyan
 Write-host "Total number of licenses needed to cover AHUB machines: $TOtalLics" -ForegroundColor Cyan
+write-host "****************************************************************************************" -Foregroundcolor cyan
+write-host ""
+write-host "NOTE: With Software Assurance:" -ForegroundColor Cyan
+write-host "  - Standard licenses can be used either on premise or in Azure." -ForegroundColor Cyan
+write-host "  - Datacenter licenses can be used both on premise and in Azure at the same time." -ForegroundColor Cyan
+write-host "This makes Azure the cheepest place to run Windows workloads." -ForegroundColor Cyan
