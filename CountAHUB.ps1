@@ -54,7 +54,7 @@ $SubscriptionID = "<insertSubscriptionIDHere>"
 #######
 
 #Get list of VM sizes of all valid commercial regions and store them in a table for lookup purposes
-$VMSizes = Get-AzurermLocation | where-object {$_.Providers -contains 'Microsoft.Compute'} | get-azurermvmsize | Sort-Object -Property Name -Unique
+$VMSizes = Get-AzurermLocation | where-object {$_.Providers -contains 'Microsoft.Compute'} | get-azurermvmsize -ErrorAction SilentlyContinue | Sort-Object -Property Name -Unique
 
 $table = @{}
 
